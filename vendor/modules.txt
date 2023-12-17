@@ -1,40 +1,23 @@
-# github.com/anthonynsimon/bild v0.10.0
-## explicit
-github.com/anthonynsimon/bild/adjust
-github.com/anthonynsimon/bild/blend
-github.com/anthonynsimon/bild/blur
-github.com/anthonynsimon/bild/clone
-github.com/anthonynsimon/bild/convolution
-github.com/anthonynsimon/bild/effect
-github.com/anthonynsimon/bild/fcolor
-github.com/anthonynsimon/bild/imgio
-github.com/anthonynsimon/bild/math/f64
-github.com/anthonynsimon/bild/parallel
-github.com/anthonynsimon/bild/transform
-github.com/anthonynsimon/bild/util
-# github.com/inconshreveable/mousetrap v1.0.0
-## explicit
-github.com/inconshreveable/mousetrap
-# github.com/otiai10/gosseract v2.1.0+incompatible
-## explicit
-github.com/otiai10/gosseract
-# github.com/otiai10/mint v1.6.3
-## explicit; go 1.18
-# github.com/pkg/errors v0.8.0
-## explicit
-github.com/pkg/errors
-# github.com/spf13/cobra v0.0.1
-## explicit
-github.com/spf13/cobra
-# github.com/spf13/pflag v1.0.0
-## explicit
-github.com/spf13/pflag
+# github.com/danlock/gogosseract v0.0.11-0ad3421
+## explicit; go 1.21.0
+github.com/danlock/gogosseract
+github.com/danlock/gogosseract/internal/gen
+github.com/danlock/gogosseract/internal/wasm
+# github.com/danlock/pkg v0.0.19-4200c72
+## explicit; go 1.21
+github.com/danlock/pkg/errors
+# github.com/jerbob92/wazero-emscripten-embind v1.3.0
+## explicit; go 1.19
+github.com/jerbob92/wazero-emscripten-embind
+github.com/jerbob92/wazero-emscripten-embind/internal
+github.com/jerbob92/wazero-emscripten-embind/types
 # github.com/tetratelabs/wazero v1.5.0
 ## explicit; go 1.19
 github.com/tetratelabs/wazero
 github.com/tetratelabs/wazero/api
 github.com/tetratelabs/wazero/experimental
 github.com/tetratelabs/wazero/experimental/sys
+github.com/tetratelabs/wazero/experimental/table
 github.com/tetratelabs/wazero/imports/emscripten
 github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1
 github.com/tetratelabs/wazero/internal/asm
@@ -69,5 +52,13 @@ github.com/tetratelabs/wazero/sys
 # golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 ## explicit; go 1.20
 golang.org/x/exp/constraints
-# golang.org/x/net v0.16.0
+# golang.org/x/text v0.13.0
 ## explicit; go 1.17
+golang.org/x/text/encoding
+golang.org/x/text/encoding/internal
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/encoding/unicode
+golang.org/x/text/encoding/unicode/utf32
+golang.org/x/text/internal/utf8internal
+golang.org/x/text/runes
+golang.org/x/text/transform

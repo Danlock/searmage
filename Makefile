@@ -19,6 +19,9 @@ deps:
 version:
 	@echo $(SHORTBUILDTAG)
 
+build:
+	CGO_ENABLED=0 go build -mod=vendor -ldflags "$(LDFLAGS)" -o ./bin/searmage ./cmd/searmage
+
 unit-test:
 	@go test -race -count=3 ./...
 
@@ -45,18 +48,3 @@ coverage-browser:
 update-readme-badge:
 	@go tool cover -func=$(COVERAGE_PATH) -o=$(COVERAGE_PATH).badge
 	@go run github.com/AlexBeauchemin/gobadge@v0.3.0 -filename=$(COVERAGE_PATH).badge
-
-# pkg.go.dev documentation is updated via go get
-update-proxy-cache:
-	@GOPROXY=https://proxy.golang.org go get github.com/danlock/rmq
-
-release:
-	@$(MAKE) deps
-ifeq ($(findstring dirty,$(SHORTBUILDTAG)),dirty)
-	@echo "Version $(SHORTBUILDTAG) is filthy, commit to clean it" && exit 1
-endif
-	@read -t 5 -p "$(SHORTBUILDTAG) will be the new released version. Hit enter to proceed, CTRL-C to cancel."
-	@$(MAKE) test
-	@$(MAKE) bench
-	@git tag $(SHORTBUILDTAG)
-	@git push origin $(SHORTBUILDTAG)

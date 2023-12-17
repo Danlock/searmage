@@ -1,81 +1,71 @@
 package ocr
 
 import (
-	"fmt"
+	"context"
+	_ "embed"
+	"io/fs"
+	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
-	"strconv"
-	"time"
+	"sync"
 
-	"github.com/anthonynsimon/bild/effect"
-	"github.com/anthonynsimon/bild/imgio"
-	"github.com/anthonynsimon/bild/transform"
-	"github.com/otiai10/gosseract"
-	"github.com/pkg/errors"
+	"github.com/danlock/gogosseract"
+	"github.com/danlock/pkg/errors"
+	"github.com/danlock/searmage/cfg"
 )
 
-type OCRParser struct {
-	gosserC            *gosseract.Client
-	preProcessedImages []string
-}
+//go:embed eng.traineddata
+var engTrainedData []byte
 
-var tmpPath = os.TempDir() + "/regex-img/"
-
-const EDGE_DETECTION_RADIUS = 5.0
-const MIN_IMG_WIDTH = 1080
-
-func NewOCRParser(imgPath string) (*OCRParser, error) {
-	img, err := imgio.Open(imgPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to read in image!")
-	}
-
-	// img = effect.EdgeDetection(img, EDGE_DETECTION_RADIUS)
-	img = effect.Grayscale(img)
-	img = transform.Resize(img, img.Bounds().Dx()*2, img.Bounds().Dy()*2, transform.NearestNeighbor)
-	preProcImgFilePath := tmpPath + strconv.Itoa(int(time.Now().UnixNano()))
-	if err := os.MkdirAll(filepath.Dir(preProcImgFilePath), os.ModePerm); err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var imgFormat imgio.Format
-	if filepath.Ext(imgPath) == ".png" {
-		imgFormat = imgio.PNG
-		preProcImgFilePath += ".png"
+func Run(ctx context.Context, args cfg.Args) error {
+	gogoPoolCfg := gogosseract.PoolConfig{}
+	if args.TrainedData != nil {
+		gogoPoolCfg.Config.TrainingData = args.TrainedData
 	} else {
-		imgFormat = imgio.JPEG
-		preProcImgFilePath += ".jpg"
+		gogoPoolCfg.TrainingDataBytes = engTrainedData
 	}
 
-	if err := imgio.Save(preProcImgFilePath, img, imgFormat); err != nil {
-		return nil, errors.WithStack(err)
+	ocr, err := gogosseract.NewPool(ctx, 10, gogoPoolCfg)
+	if err != nil {
+		return errors.Wrap(err)
 	}
 
-	return &OCRParser{gosseract.NewClient(), []string{preProcImgFilePath}}, nil
-}
+	var wg sync.WaitGroup
 
-func (ocrP *OCRParser) Close() {
-	// os.RemoveAll(tmpPath)
-	if ocrP != nil && ocrP.gosserC != nil {
-		ocrP.gosserC.Close()
-	}
-}
-
-func (ocrP *OCRParser) ScanImages() (string, error) {
-	fmt.Println("Starting to scan images!")
-	ocrCLI := gosseract.NewClient().SetPageSegMode(gosseract.PSM_SINGLE_BLOCK)
-	defer ocrCLI.Close()
-	ocrCLI.SetImage(ocrP.preProcessedImages[0])
-
-	for i := gosseract.PSM_AUTO; i <= gosseract.PSM_SPARSE_TEXT_OSD; i++ {
-		ocrCLI = ocrCLI.SetPageSegMode(i)
-		text, err := ocrCLI.Text()
+	err = filepath.WalkDir(args.ImageDir, func(fPath string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return "", errors.WithStack(err)
+			return errors.Errorf("filepath.WalkDir os.Open %w", err)
 		}
 
-		fmt.Printf("\nFound text using psm mode %d:\n%s\n", i, text)
+		if d.IsDir() {
+			return nil
+		}
+
+		switch path.Ext(fPath) {
+		case ".jpg", ".jpeg", ".png":
+		default:
+			return nil
+		}
+
+		img, err := os.Open(fPath)
+		if err != nil {
+			return errors.Errorf("filepath.WalkDir os.Open %w", err)
+		}
+		wg.Add(1)
+		// TODO: instead of spinning up N goroutines, send the path into a buffered channel or something
+		go func() {
+			text, err := ocr.ParseImage(ctx, img, gogosseract.ParseImageOptions{})
+			slog.Info("gogosseract ParseImage", "path", fPath, "text", text, "err", err)
+			wg.Done()
+		}()
+
+		return nil
+	})
+	if err != nil {
+		return errors.Errorf("filepath.WalkDir %w", err)
 	}
 
-	return "text", nil
+	wg.Wait()
+	return nil
 }
