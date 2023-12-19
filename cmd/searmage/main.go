@@ -32,10 +32,14 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+	defer func() {
+		if err := args.DB.Close(); err != nil {
+			slog.Error("db close", "err", err)
+		}
+	}()
 
-	err = ocr.Run(ctx, args)
+	err = ocr.Parse(ctx, args)
 	if err != nil {
 		slog.Error(err.Error())
-		os.Exit(1)
 	}
 }
