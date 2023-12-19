@@ -33,8 +33,8 @@ func ParseFlags() (Args, error) {
 	flag.StringVar(&a.DBPath, "db", path.Join(os.TempDir(), "searmage.sqlite3"), "Path to place the database where searmage indexes image text. Defaults to the temp directory.")
 	flag.BoolVar(&a.Debug, "debug", false, "Enable debug logging.")
 	flag.BoolVar(&a.Clear, "clear", false, "If set, clears the given database instead of parsing images.")
-	flag.StringVar(&a.Search, "search", "", "If set, searches for the given text within previously parsed images instead of parsing images. (by default uses LIKE from https://www.sqlite.org/lang_expr.html)")
-	flag.BoolVar(&a.IsRegex, "regex", false, "If set, -search is evaluated as REGEXP instead of LIKE using https://pkg.go.dev/regexp/syntax")
+	flag.StringVar(&a.Search, "search", "", "If set, searches for the given text within previously parsed images instead of parsing images. (by default uses MATCH from https://www.sqlite.org/fts5.html)")
+	flag.BoolVar(&a.IsRegex, "regex", false, "If set, -search is evaluated as REGEXP instead of MATCH using https://pkg.go.dev/regexp/syntax")
 	flag.Parse()
 	// short circuit if we aren't parsing images
 	if a.Clear || a.Search != "" {

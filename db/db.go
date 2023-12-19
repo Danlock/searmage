@@ -27,8 +27,7 @@ func Setup(ctx context.Context, dbPath string) (*sql.DB, error) {
 	// the images table contains the path, our parsed text, and a hash of the image.
 	// image_hash is prepended with the hash algorithm (md5:, blake2b:, etc...) to support upgrading the hash later.
 	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS images
-		(path TEXT PRIMARY KEY, image_text TEXT NOT NULL, image_hash TEXT NOT NULL) STRICT`)
+		CREATE VIRTUAL TABLE IF NOT EXISTS images USING fts5(path, image_text, image_hash)`)
 	if err != nil {
 		return nil, errors.Errorf("db.Exec %w", err)
 	}
@@ -79,9 +78,9 @@ func InsertParsedText(ctx context.Context, db *sql.DB, path, text, hash string) 
 }
 
 func SearchParsedText(ctx context.Context, db *sql.DB, search string, isRegex bool) ([]string, error) {
-	searchQ := "SELECT path FROM images WHERE image_text LIKE ?"
+	searchQ := "SELECT path FROM images WHERE image_text MATCH ?"
 	if isRegex {
-		searchQ = strings.Replace(searchQ, "LIKE", "REGEXP", 1)
+		searchQ = strings.Replace(searchQ, "MATCH", "REGEXP", 1)
 	}
 
 	rows, err := db.QueryContext(ctx, searchQ, search)
