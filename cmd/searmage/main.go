@@ -9,6 +9,7 @@ import (
 	"os/signal"
 
 	"github.com/danlock/searmage/cfg"
+	"github.com/danlock/searmage/db"
 	"github.com/danlock/searmage/ocr"
 )
 
@@ -32,11 +33,33 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	if args.Debug {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
+
+	if args.Clear {
+		slog.Info("-clear was set, database gone...", "err", os.Remove(args.DBPath))
+		return
+	}
+
+	args.DB, err = db.Setup(ctx, args.DBPath)
+	if err != nil {
+		slog.Error("sqlite", "err", err)
+		flag.Usage()
+		os.Exit(1)
+	}
 	defer func() {
 		if err := args.DB.Close(); err != nil {
 			slog.Error("db close", "err", err)
 		}
 	}()
+
+	if args.Search != "" {
+		images, err := db.SearchParsedText(ctx, args.DB, args.Search, args.IsRegex)
+		slog.Info("-search was set, found the following...", "err", err, "images", images)
+		return
+	}
 
 	err = ocr.Parse(ctx, args)
 	if err != nil {

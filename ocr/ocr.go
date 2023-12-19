@@ -2,18 +2,14 @@ package ocr
 
 import (
 	"context"
-	"crypto/md5"
 	_ "embed"
-	"io"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"time"
 
-	"github.com/danlock/gogosseract"
 	"github.com/danlock/pkg/errors"
 	"github.com/danlock/searmage/cfg"
 	"github.com/danlock/searmage/db"
@@ -21,6 +17,8 @@ import (
 
 //go:embed eng.traineddata
 var engTrainedData []byte
+
+type WorkerFunc func(ctx context.Context, errChan chan<- error, img *os.File) error
 
 func Parse(ctx context.Context, args cfg.Args) error {
 	start := time.Now()
@@ -30,24 +28,27 @@ func Parse(ctx context.Context, args cfg.Args) error {
 		return errors.Wrap(err)
 	}
 
-	images, err = db.FilterParsedImages(args.DB, images)
+	images, err = db.FilterParsedImages(ctx, args.DB, images)
 	if err != nil {
 		return errors.Wrap(err)
 	}
 
-	if len(images) == 0 {
+	filteredImageCount := len(images)
+
+	if filteredImageCount == 0 {
 		slog.Info("All images in -dir have been parsed already", "-dir", args.ImageDir)
 		return nil
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	workers := uint(runtime.NumCPU())
+
+	slog.Info("searmage processing...", "count", filteredImageCount, "workers", args.Workers)
 
 	// Generate image files for the Tesseract workers.
 	// By buffering the channel to the amount of workers in the pool,
-	// we ensure we don't open more image files than needed.
-	imgChan := make(chan *os.File, workers)
+	// we ensure we don't open more image files than needed at a time.
+	imgChan := make(chan *os.File, args.Workers)
 	errChan := make(chan error, 1)
 	go func() {
 		for _, fPath := range images {
@@ -65,19 +66,10 @@ func Parse(ctx context.Context, args cfg.Args) error {
 		}
 	}()
 
-	gogoPoolCfg := gogosseract.PoolConfig{}
-	if args.TrainedData != nil {
-		gogoPoolCfg.Config.TrainingData = args.TrainedData
-	} else {
-		gogoPoolCfg.TrainingDataBytes = engTrainedData
-	}
-
-	ocr, err := gogosseract.NewPool(ctx, workers, gogoPoolCfg)
+	process, err := setupWorkers(ctx, args)
 	if err != nil {
 		return errors.Wrap(err)
 	}
-	defer ocr.Close()
-
 	parsedImages := 0
 
 	for {
@@ -89,32 +81,9 @@ func Parse(ctx context.Context, args cfg.Args) error {
 				return errors.Wrap(err)
 			}
 			parsedImages++
+
 		case img := <-imgChan:
-			// Spin up a goroutine that hashes, parses the image and stores the result in the database.
-			// Since imgChan is bounded to the CPU count, there should be more than that many running at the same time.
-			go func() (err error) {
-				defer img.Close()
-				defer func() { errChan <- err }()
-
-				hasher := md5.New()
-				io.Copy(hasher, img)
-
-				_, err = img.Seek(0, 0)
-				if err != nil {
-					return errors.Errorf("img.Seek %w", err)
-				}
-
-				text, err := ocr.ParseImage(ctx, img, gogosseract.ParseImageOptions{
-					ProgressCB: func(i int32) {
-						slog.Info("progress", "%", i, "path", img.Name())
-					},
-				})
-				if err != nil {
-					return errors.Wrap(err)
-				}
-
-				return errors.Wrap(db.InsertParsedText(args.DB, img.Name(), text, "md5:"+string(hasher.Sum([]byte{}))))
-			}()
+			go process(ctx, errChan, img)
 		}
 
 		if parsedImages == len(images) {
@@ -122,8 +91,7 @@ func Parse(ctx context.Context, args cfg.Args) error {
 		}
 	}
 
-	slog.Info("Finished parsing", "images", parsedImages, "duration", time.Since(start))
-
+	slog.Info("Finished parsing", "count", parsedImages, "duration", time.Since(start))
 	return nil
 }
 

@@ -1,26 +1,42 @@
 package db
 
 import (
+	"context"
+	"database/sql"
 	"slices"
+	"strings"
 
 	"github.com/danlock/pkg/errors"
 	"github.com/ncruces/go-sqlite3"
+	"github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/ncruces/go-sqlite3/ext/array"
+	"github.com/ncruces/go-sqlite3/ext/unicode"
 )
 
-func Setup(dbPath string) (*sqlite3.Conn, error) {
-	db, err := sqlite3.Open(dbPath)
+func Setup(ctx context.Context, dbPath string) (*sql.DB, error) {
+	db, err := driver.Open(dbPath, func(c *sqlite3.Conn) error {
+		array.Register(c)
+		unicode.Register(c)
+		return nil
+	})
 	if err != nil {
-		return nil, errors.Errorf("sqlite3.Open %w", err)
+		return nil, errors.Errorf("sql.Open %w", err)
 	}
-	array.Register(db)
 
 	// the images table contains the path, our parsed text, and a hash of the image.
 	// image_hash is prepended with the hash algorithm (md5:, blake2b:, etc...) to support upgrading the hash later.
-	err = db.Exec(`
+	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS images
 		(path TEXT PRIMARY KEY, image_text TEXT NOT NULL, image_hash TEXT NOT NULL) STRICT`)
+	if err != nil {
+		return nil, errors.Errorf("db.Exec %w", err)
+	}
+
+	// config is a generic table intended for misc config, such as the wazero WASM compilation cache.
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS config
+		(key TEXT PRIMARY KEY, value ANY NOT NULL) STRICT`)
 	if err != nil {
 		return nil, errors.Errorf("db.Exec %w", err)
 	}
@@ -28,28 +44,25 @@ func Setup(dbPath string) (*sqlite3.Conn, error) {
 	return db, nil
 }
 
-func FilterParsedImages(db *sqlite3.Conn, images []string) ([]string, error) {
+func FilterParsedImages(ctx context.Context, db *sql.DB, images []string) ([]string, error) {
 	// TODO: For now we use the path to identify images. Eventually incorporate the hash to recognize an image after renames.
-	stmt, _, err := db.Prepare(`
-		SELECT path FROM images
-		WHERE path IN array(?)
-	`)
+	rows, err := db.QueryContext(ctx, `
+		SELECT path FROM images WHERE path IN array(?)
+	`, sqlite3.Pointer(images))
 	if err != nil {
-		return images, errors.Errorf("DB.Prepare path query %w", err)
+		return images, errors.Errorf("db.QueryContext %w", err)
 	}
+	defer rows.Close()
 
-	err = stmt.BindPointer(1, sqlite3.Pointer(images))
-	if err != nil {
-		return images, errors.Errorf("stmt.BindPointer path query %w", err)
-	}
+	parsedImages := make(map[string]struct{})
 
-	var parsedImages map[string]struct{}
-
-	for stmt.Step() {
-		parsedImages[stmt.ColumnText(0)] = struct{}{}
-	}
-	if err = stmt.Err(); err != nil {
-		return images, errors.Errorf("stmt.Err path query %w", err)
+	for rows.Next() {
+		var path string
+		rows.Scan(&path)
+		if err != nil {
+			return images, errors.Errorf("rows.Scan %w", err)
+		}
+		parsedImages[path] = struct{}{}
 	}
 
 	return slices.DeleteFunc(images, func(s string) bool {
@@ -58,15 +71,35 @@ func FilterParsedImages(db *sqlite3.Conn, images []string) ([]string, error) {
 	}), nil
 }
 
-func InsertParsedText(db *sqlite3.Conn, path, text, hash string) error {
-	stmt, _, err := db.Prepare(`
+func InsertParsedText(ctx context.Context, db *sql.DB, path, text, hash string) error {
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO images (path, image_text, image_hash) VALUES (?,?,?)
-	`)
-	if err != nil {
-		return errors.Errorf("DB.Prepare insert image query %w", err)
+	`, path, text, hash)
+	return errors.Wrap(err)
+}
+
+func SearchParsedText(ctx context.Context, db *sql.DB, search string, isRegex bool) ([]string, error) {
+	searchQ := "SELECT path FROM images WHERE image_text LIKE ?"
+	if isRegex {
+		searchQ = strings.Replace(searchQ, "LIKE", "REGEXP", 1)
 	}
-	stmt.BindText(0, path)
-	stmt.BindText(1, text)
-	stmt.BindText(2, hash)
-	return errors.Wrap(stmt.Exec())
+
+	rows, err := db.QueryContext(ctx, searchQ, search)
+	if err != nil {
+		return nil, errors.Errorf("db.QueryContext %w", err)
+	}
+	defer rows.Close()
+
+	var matchingImages []string
+
+	for rows.Next() {
+		var path string
+		rows.Scan(&path)
+		if err != nil {
+			return nil, errors.Errorf("rows.Scan %w", err)
+		}
+		matchingImages = append(matchingImages, path)
+	}
+
+	return matchingImages, nil
 }
