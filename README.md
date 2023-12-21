@@ -17,3 +17,15 @@ This will search the previously parsed image text and return with the path of ma
 ` ./bin/searmage -help `
 
 Will expose further flags, outlined at cfg/args.go
+
+
+# C
+
+With CGO_ENABLED=0 Wazero is used to run Tesseract and SQLite, which have both been compiled to WASM.
+With CGO_ENABLED=1 however you can use a locally installed Tesseract instead. Here's an example on how to install Tesseract locally.
+
+```
+sudo apt-get install -y -qq libtesseract-dev libleptonica-dev tesseract-ocr-eng
+```
+
+The CGO_ENABLED=0 version is currently roughly 6 times slower.

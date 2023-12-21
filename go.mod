@@ -6,6 +6,7 @@ require (
 	github.com/danlock/gogosseract v0.0.11-0ad3421
 	github.com/danlock/pkg v0.0.19-4200c72
 	github.com/ncruces/go-sqlite3 v0.11.1
+	github.com/otiai10/gosseract/v2 v2.4.1
 )
 
 require (

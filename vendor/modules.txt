@@ -23,6 +23,9 @@ github.com/ncruces/go-sqlite3/vfs
 # github.com/ncruces/julianday v1.0.0
 ## explicit; go 1.17
 github.com/ncruces/julianday
+# github.com/otiai10/gosseract/v2 v2.4.1
+## explicit; go 1.18
+github.com/otiai10/gosseract/v2
 # github.com/tetratelabs/wazero v1.5.0
 ## explicit; go 1.19
 github.com/tetratelabs/wazero

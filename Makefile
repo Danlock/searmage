@@ -22,6 +22,9 @@ version:
 build:
 	CGO_ENABLED=0 go build -mod=vendor -ldflags "$(LDFLAGS)" -o ./bin/searmage ./cmd/searmage
 
+build_c:
+	CGO_ENABLED=1 go build -mod=vendor -ldflags "$(LDFLAGS)" -o ./bin/searmage_cgo ./cmd/searmage
+
 unit-test:
 	@go test -race -count=3 ./...
 
