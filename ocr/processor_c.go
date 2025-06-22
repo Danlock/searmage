@@ -16,7 +16,7 @@ import (
 )
 
 // setupWorkers creates a pool of gosseract workers, and returns a worker function that parses the image, stores the result in sqlite and returns an error or nil to errChan.
-func setupWorkers(ctx context.Context, args cfg.Args) (WorkerFunc, error) {
+func setupWorkers(_ context.Context, args cfg.Args) (WorkerFunc, error) {
 	return func(ctx context.Context, errChan chan<- error, img *os.File) (err error) {
 		tess := gosseract.NewClient()
 		defer tess.Close()
@@ -29,7 +29,7 @@ func setupWorkers(ctx context.Context, args cfg.Args) (WorkerFunc, error) {
 		hash := "md5:" + base64.RawURLEncoding.EncodeToString(hasher.Sum([]byte{}))
 		err = tess.SetImage(img.Name())
 		if err != nil {
-			return errors.Errorf("tess.SetImage %w", err)
+			return errors.Wrapf(err, "tess.SetImage")
 		}
 
 		text, err := tess.Text()

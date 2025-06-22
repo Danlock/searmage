@@ -36,7 +36,7 @@ func Parse(ctx context.Context, args cfg.Args) error {
 	filteredImageCount := len(images)
 
 	if filteredImageCount == 0 {
-		slog.Info("All images in -dir have been parsed already", "-dir", args.ImageDir)
+		slog.Info("Found 0 unparsed images within dir", "-dir", args.ImageDir)
 		return nil
 	}
 
@@ -54,7 +54,7 @@ func Parse(ctx context.Context, args cfg.Args) error {
 		for _, fPath := range images {
 			img, err := os.Open(fPath)
 			if err != nil {
-				errChan <- errors.Errorf("os.Open %w", err)
+				errChan <- errors.Wrapf(err, "os.Open")
 				return
 			}
 			select {
@@ -75,7 +75,7 @@ func Parse(ctx context.Context, args cfg.Args) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.Errorf(" context done before  ", ctx.Err())
+			return errors.Wrap(ctx.Err())
 		case err := <-errChan:
 			if err != nil {
 				return errors.Wrap(err)
@@ -86,7 +86,7 @@ func Parse(ctx context.Context, args cfg.Args) error {
 			go process(ctx, errChan, img)
 		}
 
-		if parsedImages == len(images) {
+		if parsedImages == filteredImageCount {
 			break
 		}
 	}
@@ -99,7 +99,7 @@ func GetImagePaths(dir string) ([]string, error) {
 	var imagePaths []string
 	err := filepath.WalkDir(dir, func(fPath string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return errors.Errorf("filepath.WalkDir os.Open %w", err)
+			return errors.Wrapf(err, "filepath.WalkDir os.Open")
 		}
 
 		if d.IsDir() {
@@ -116,7 +116,7 @@ func GetImagePaths(dir string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Errorf("filepath.WalkDir %w", err)
+		return nil, errors.Wrapf(err, "filepath.WalkDir")
 	}
 	return imagePaths, nil
 }

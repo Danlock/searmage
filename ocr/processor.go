@@ -41,7 +41,7 @@ func setupWorkers(ctx context.Context, args cfg.Args) (WorkerFunc, error) {
 
 		_, err = img.Seek(0, io.SeekStart)
 		if err != nil {
-			return errors.Errorf("img.Seek %w", err)
+			return errors.Wrapf(err, "img.Seek")
 		}
 
 		text, err := ocr.ParseImage(ctx, img, gogosseract.ParseImageOptions{

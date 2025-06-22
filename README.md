@@ -21,8 +21,8 @@ Will expose further flags, outlined at cfg/args.go
 
 # C
 
-With CGO_ENABLED=0 Wazero is used to run Tesseract and SQLite, which have both been compiled to WASM.
-With CGO_ENABLED=1 however you can use a locally installed Tesseract instead. Here's an example on how to install Tesseract locally.
+With CGO_ENABLED=0 Wazero is used to run Tesseract, which has been compiled to WASM.
+With CGO_ENABLED=1 however you can use a locally installed Tesseract instead. Here's an example on how to install Tesseract locally on a Debian based system.
 
 ```
 sudo apt-get install -y -qq libtesseract-dev libleptonica-dev tesseract-ocr-eng

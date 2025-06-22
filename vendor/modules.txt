@@ -3,8 +3,8 @@
 github.com/danlock/gogosseract
 github.com/danlock/gogosseract/internal/gen
 github.com/danlock/gogosseract/internal/wasm
-# github.com/danlock/pkg v0.0.19-4200c72
-## explicit; go 1.21
+# github.com/danlock/pkg v0.0.33-d8f5e77
+## explicit; go 1.24.4
 github.com/danlock/pkg/errors
 # github.com/jerbob92/wazero-emscripten-embind v1.3.0
 ## explicit; go 1.19

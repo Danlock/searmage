@@ -21,7 +21,7 @@ func Setup(ctx context.Context, dbPath string) (*sql.DB, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Errorf("sql.Open %w", err)
+		return nil, errors.Wrapf(err, "sql.Open")
 	}
 
 	// the images table contains the path, our parsed text, and a hash of the image.
@@ -29,18 +29,14 @@ func Setup(ctx context.Context, dbPath string) (*sql.DB, error) {
 	_, err = db.ExecContext(ctx, `
 		CREATE VIRTUAL TABLE IF NOT EXISTS images USING fts5(path, image_text, image_hash)`)
 	if err != nil {
-		return nil, errors.Errorf("db.Exec %w", err)
+		return nil, errors.Wrapf(err, "db.Exec")
 	}
 
 	// config is a generic table intended for misc config, such as the wazero WASM compilation cache.
 	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS config
 		(key TEXT PRIMARY KEY, value ANY NOT NULL) STRICT`)
-	if err != nil {
-		return nil, errors.Errorf("db.Exec %w", err)
-	}
-
-	return db, nil
+	return db, errors.Wrapf(err, "db.Exec")
 }
 
 func FilterParsedImages(ctx context.Context, db *sql.DB, images []string) ([]string, error) {
@@ -49,7 +45,7 @@ func FilterParsedImages(ctx context.Context, db *sql.DB, images []string) ([]str
 		SELECT path FROM images WHERE path IN array(?)
 	`, sqlite3.Pointer(images))
 	if err != nil {
-		return images, errors.Errorf("db.QueryContext %w", err)
+		return images, errors.Wrapf(err, "db.QueryContext")
 	}
 	defer rows.Close()
 
@@ -57,9 +53,8 @@ func FilterParsedImages(ctx context.Context, db *sql.DB, images []string) ([]str
 
 	for rows.Next() {
 		var path string
-		rows.Scan(&path)
-		if err != nil {
-			return images, errors.Errorf("rows.Scan %w", err)
+		if err = rows.Scan(&path); err != nil {
+			return images, errors.Wrapf(err, "rows.Scan")
 		}
 		parsedImages[path] = struct{}{}
 	}
@@ -85,7 +80,7 @@ func SearchParsedText(ctx context.Context, db *sql.DB, search string, isRegex bo
 
 	rows, err := db.QueryContext(ctx, searchQ, search)
 	if err != nil {
-		return nil, errors.Errorf("db.QueryContext %w", err)
+		return nil, errors.Wrapf(err, "db.QueryContext")
 	}
 	defer rows.Close()
 
@@ -93,9 +88,8 @@ func SearchParsedText(ctx context.Context, db *sql.DB, search string, isRegex bo
 
 	for rows.Next() {
 		var path string
-		rows.Scan(&path)
-		if err != nil {
-			return nil, errors.Errorf("rows.Scan %w", err)
+		if err = rows.Scan(&path); err != nil {
+			return nil, errors.Wrapf(err, "rows.Scan")
 		}
 		matchingImages = append(matchingImages, path)
 	}

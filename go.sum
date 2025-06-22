@@ -1,7 +1,7 @@
 github.com/danlock/gogosseract v0.0.11-0ad3421 h1:2wNmQWnb1JWBoPhUVjx/mL840YyrOexr18mbIJEfsr8=
 github.com/danlock/gogosseract v0.0.11-0ad3421/go.mod h1:/H55SoQy50Ey0fZbTlB2fTMHHHwLQpcHVskk8e1ciRk=
-github.com/danlock/pkg v0.0.19-4200c72 h1:iEHQM/Rc6qvAlyla4SWZhZ3ueca38brnFg4AUATbAiE=
-github.com/danlock/pkg v0.0.19-4200c72/go.mod h1:AGb6QKzqfK0S8InsSdRRmkE2UbjSK1XtCPvP2n09SOU=
+github.com/danlock/pkg v0.0.33-d8f5e77 h1:uiZjYCA1RWuO3O/mVilKOUnQ+9KGJrMZGH9BMqpln9M=
+github.com/danlock/pkg v0.0.33-d8f5e77/go.mod h1:/Aw0J+m+uk+wQZY5wR0anF30D0RrIwkiDtGkKvjg54c=
 github.com/go-logr/logr v1.2.4 h1:g01GSCwiDw2xSZfjJ2/T9M+S6pFdcNtFYsp+Y43HYDQ=
 github.com/go-logr/logr v1.2.4/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=

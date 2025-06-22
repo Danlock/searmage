@@ -29,7 +29,7 @@ func main() {
 
 	args, err := cfg.ParseFlags()
 	if err != nil {
-		slog.Error(err.Error())
+		slog.Error("config", "err", err)
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -63,6 +63,6 @@ func main() {
 
 	err = ocr.Parse(ctx, args)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.Error("ocr", "err", err)
 	}
 }

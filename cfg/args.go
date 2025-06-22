@@ -50,7 +50,7 @@ func ParseFlags() (Args, error) {
 	if a.trainedDataPath != "" {
 		a.TrainedData, err = os.Open(a.trainedDataPath)
 		if err != nil {
-			return a, errors.Errorf("-trained-data os.Open %w", err)
+			return a, errors.Wrapf(err, "-trained-data os.Open")
 		}
 	}
 

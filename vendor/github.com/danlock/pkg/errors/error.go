@@ -1,74 +1,149 @@
-// Personalize the errors stdlib to prepend the calling functions name to errors for simple traces
-// An example of how this work can be seen at github.com/danlock/gogosseract.
-// Example error message from gogosseract:
-// gogosseract.NewPool failed worker setup due to gogosseract.(*Pool).runTesseract gogosseract.New gogosseract.Tesseract.createByteView wasm.GetReaderSize io.Reader was empty
+// Package errors prefixes the calling functions name to errors for simpler, smaller traces.
+// This package tries to split the difference between github.com/pkg/errors and Go stdlib errors,
+// with first class support for log/slog.
 package errors
 
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
 	"runtime"
 )
 
+// caller is the number of stack frames to skip when determining the caller's package.func.
+const caller = 4
+
 // New creates a new error with the package.func of it's caller prepended.
-func New(text string) error {
-	return errors.New(prependCaller(text, 2))
-}
+// It also includes the file and line info of it's caller.
+func New(text string) error { return ErrorfWithSkip(caller, text) }
 
 // Errorf is like fmt.Errorf with the "package.func" of it's caller prepended.
-func Errorf(format string, a ...any) error {
-	return fmt.Errorf(prependCaller(format, 2), a...)
+// It also includes the file and line info of it's caller.
+func Errorf(format string, a ...any) error { return ErrorfWithSkip(caller, format, a...) }
+
+// ErrorfWithSkip is like fmt.Errorf with the "package.func" of the desired caller prepended.
+// It also includes the file and line info of it's caller.
+func ErrorfWithSkip(skip int, format string, a ...any) error {
+	frame := callerFunc(skip)
+	var meta []slog.Attr
+	if DefaultFileSlogKey != "" {
+		meta = []slog.Attr{
+			slog.String(DefaultFileSlogKey, fmt.Sprintf("%s:%d", frame.File, frame.Line))}
+	}
+	return metaError{meta: meta,
+		error: fmt.Errorf(prependCaller(format, frame), a...)}
 }
 
-// Errorf is like fmt.Errorf with the "package.func" of the desired caller prepended.
-func ErrorfWithSkip(format string, skip int, a ...any) error {
-	return fmt.Errorf(prependCaller(format, skip), a...)
+// WrapAndPass wraps a typical error func with Wrap and passes the value through unchanged.
+func WrapAndPass[T any](val T, err error) (T, error) { return val, WrapfWithSkip(err, caller, "") }
+
+// WrapfAndPass wraps a typical error func with Wrapf and passes the value through unchanged.
+func WrapfAndPass[T any](val T, err error, format string, a ...any) (T, error) {
+	return val, WrapfWithSkip(err, caller, format, a...)
 }
 
 // Wrap wraps an error with the caller's package.func prepended.
-// Similar to github.com/pkg/errors.Wrap it also returns nil if err is nil, unlike fmt.Errorf.
-// Exclusively for wrapping an error with nothing more than the calling functions name, as more involved errors
-// should use Errorf to match up a tiny bit closer with the Go stdlib.
-func Wrap(err error) error {
+// Similar to github.com/pkg/errors.Wrap and unlike fmt.Errorf it returns nil if err is nil.
+// If not wrapping an error from this Go package it also includes the file and line info of it's caller.
+func Wrap(err error) error { return WrapfWithSkip(err, caller, "") }
+
+// Wrapf wraps an error with the caller's package.func prepended.
+// Similar to github.com/pkg/errors.Wrapf and unlike fmt.Errorf it returns nil if err is nil.
+// If not wrapping an error from this Go package it also includes the file and line info of it's caller.
+func Wrapf(err error, format string, a ...any) error {
+	return WrapfWithSkip(err, caller, format, a...)
+}
+
+// WrapfWithSkip wraps an error with the caller's package.func prepended.
+// Similar to github.com/pkg/errors.Wrapf and unlike fmt.Errorf it returns nil if err is nil.
+// If not wrapping an error from this Go package it also includes the file and line info of it's caller.
+// skip is the number of stack frames to skip before recording the function info from runtime.Callers.
+func WrapfWithSkip(err error, skip int, format string, a ...any) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf(prependCaller("%w", 2), err)
+	frame := callerFunc(skip)
+	var meta []slog.Attr
+	if DefaultFileSlogKey != "" {
+		if _, exist := Into[metaError](err); !exist {
+			meta = []slog.Attr{
+				slog.String(DefaultFileSlogKey, fmt.Sprintf("%s:%d", frame.File, frame.Line))}
+		}
+	}
+
+	if format == "" {
+		format = "%w"
+	} else {
+		format += " %w"
+	}
+
+	return metaError{meta: meta,
+		error: fmt.Errorf(prependCaller(format, frame), append(a, err)...)}
 }
 
-func prependCaller(text string, skip int) string {
-	pc, _, _, ok := runtime.Caller(skip)
-	if !ok {
-		return ""
+func callerFunc(skip int) runtime.Frame {
+	var pcs [1]uintptr
+	if runtime.Callers(skip, pcs[:]) == 0 {
+		return runtime.Frame{}
 	}
-	f := runtime.FuncForPC(pc)
-	if f == nil {
-		return ""
+	frames := runtime.CallersFrames(pcs[:])
+	if frames == nil {
+		return runtime.Frame{}
 	}
-	// f.Name() gives back something like github.com/danlock/pkg.funcName.
+	frame, _ := frames.Next()
+	return frame
+}
+
+func prependCaller(text string, f runtime.Frame) string {
+	if f.Function == "" {
+		return text
+	}
+	// runtime.Frame.Function gives back something like github.com/danlock/pkg.funcName.
 	// with just the package name and the func name, nested errors look more readable by default.
-	// We also avoid an ugly giant stack trace that won't always get printed out.
-	_, fName := path.Split(f.Name())
+	// We also avoid the ugly giant stack trace cluttering logs and looking similar to panics.
+	// Now that the file:line of the original error is also within the metadata,
+	// trimming the fat makes errors easier to parse at a glance.
+	_, fName := path.Split(f.Function)
 	return fmt.Sprint(fName, " ", text)
+}
+
+// Into finds the first error in err's chain that matches target type T, and if so, returns it.
+// Into is a type-safe alternative to As.
+func Into[T error](err error) (val T, ok bool) {
+	return val, errors.As(err, &val)
+}
+
+// Must is a generic helper, like template.Must, that wraps a call to a function returning (T, error)
+// and panics if the error is non-nil.
+func Must[T any](val T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return val
 }
 
 // The following simply call the stdlib so users don't need to include both errors packages.
 
+// ErrUnsupported indicates that a requested operation cannot be performed, because it is unsupported
 var ErrUnsupported = errors.ErrUnsupported
 
+// As finds the first error in err's tree that matches target, and if one is found, sets target to that error value and returns true. Otherwise, it returns false.
 func As(err error, target any) bool {
 	return errors.As(err, target)
 }
 
+// Is reports whether any error in err's tree matches target.
 func Is(err error, target error) bool {
 	return errors.Is(err, target)
 }
 
+// Join returns an error that wraps the given errors.
 func Join(errs ...error) error {
 	return errors.Join(errs...)
 }
 
+// Unwrap returns the result of calling the Unwrap method on err, if err's type contains an Unwrap method returning error. Otherwise, Unwrap returns nil.
 func Unwrap(err error) error {
 	return errors.Unwrap(err)
 }
